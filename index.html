@@ -366,6 +366,26 @@
   }
 
   /* ═══════════════════════════════════════
+     語音朗讀按鈕
+  ═══════════════════════════════════════ */
+  .btn-tts {
+    background: none;
+    border: 1px solid #b8922a;
+    color: #a8bcd0;
+    cursor: pointer;
+    border-radius: 4px;
+    padding: 4px 7px;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s, color 0.15s;
+    flex-shrink: 0;
+  }
+  .btn-tts:hover { background: #2d5a8e; color: #f5e6c0; }
+  .btn-tts:active { background: #b8922a; }
+  .btn-tts svg { display: block; }
+  .btn-tts.tts-playing { background: #1e3a5f; color: #b8922a; border-color: #e8b84b; }
+  .btn-tts:disabled { opacity: 0.3; cursor: default; }
+
+  /* ═══════════════════════════════════════
      共用：全螢幕按鈕
   ═══════════════════════════════════════ */
   .btn-fs {
@@ -448,6 +468,17 @@
         <span class="font-size-label" id="fontSizeLabel"></span>
         <button class="font-btn btn-plus" id="btnFontPlus" title="放大文字">A＋</button>
       </div>
+      <button class="btn-tts" id="btnTts" title="語音朗讀" disabled>
+        <svg id="ttsIconOff" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+          <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+        </svg>
+        <svg id="ttsIconOn" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+          <line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>
+        </svg>
+      </button>
       <span class="page-indicator" id="topPageInd"></span>
       <button class="btn-fs" id="btnFsReader" title="全螢幕">
         <svg id="readerFsExpand" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
@@ -522,6 +553,7 @@ const viewShelf  = document.getElementById('view-shelf');
 const viewReader = document.getElementById('view-reader');
 
 function showShelf() {
+  ttsStop();
   viewReader.classList.add('hidden');
   viewShelf.classList.remove('hidden');
   document.title = '我的電子書櫃';
@@ -579,6 +611,7 @@ function loadBook(bookId) {
 }
 
 function render(idx, dir) {
+  ttsStop();
   current = idx;
   const vp = document.getElementById('viewport');
   const el = document.createElement('div');
@@ -657,6 +690,7 @@ function render(idx, dir) {
   updateNav();
   updateProgress();
   updateTopBar();
+  updateTtsBtn();
   busy = false;
 }
 
@@ -758,6 +792,69 @@ function imgZoomStep(img, label, dir) {
   idx = Math.max(0, Math.min(IMG_ZOOM_STEPS.length - 1, idx + dir));
   imgZoomSet(img, label, IMG_ZOOM_STEPS[idx]);
 }
+
+// ══════════════════════════════════════
+//  語音朗讀 (TTS)
+// ══════════════════════════════════════
+let ttsSpeaking = false;
+
+function getTtsVoice() {
+  const voices = window.speechSynthesis.getVoices();
+  return voices.find(v => v.lang === 'zh-TW')
+      || voices.find(v => v.lang === 'zh-HK')
+      || voices.find(v => v.lang.startsWith('zh'))
+      || null;
+}
+
+function ttsStop() {
+  if (!window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  ttsSpeaking = false;
+  updateTtsBtn();
+}
+
+function ttsSpeak(text) {
+  if (!window.speechSynthesis) return;
+  ttsStop();
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.lang = 'zh-TW';
+  utter.rate = 0.88;
+  // 等語音清單載入後再指定聲音
+  function doSpeak() {
+    const voice = getTtsVoice();
+    if (voice) utter.voice = voice;
+    utter.onend   = () => { ttsSpeaking = false; updateTtsBtn(); };
+    utter.onerror = () => { ttsSpeaking = false; updateTtsBtn(); };
+    window.speechSynthesis.speak(utter);
+    ttsSpeaking = true;
+    updateTtsBtn();
+  }
+  if (window.speechSynthesis.getVoices().length > 0) {
+    doSpeak();
+  } else {
+    window.speechSynthesis.onvoiceschanged = () => { window.speechSynthesis.onvoiceschanged = null; doSpeak(); };
+  }
+}
+
+function updateTtsBtn() {
+  const btn = document.getElementById('btnTts');
+  if (!btn) return;
+  const isContent = book && current >= 1 && current <= book.pages.length;
+  btn.disabled = !isContent;
+  btn.classList.toggle('tts-playing', ttsSpeaking);
+  btn.title = ttsSpeaking ? '停止朗讀' : '語音朗讀';
+  document.getElementById('ttsIconOff').style.display = ttsSpeaking ? 'none' : '';
+  document.getElementById('ttsIconOn').style.display  = ttsSpeaking ? '' : 'none';
+}
+
+document.getElementById('btnTts').addEventListener('click', () => {
+  if (ttsSpeaking) {
+    ttsStop();
+  } else {
+    if (!book || current < 1 || current > book.pages.length) return;
+    ttsSpeak(book.pages[current - 1].text);
+  }
+});
 
 // ══════════════════════════════════════
 //  初始化：檢查 URL 參數
