@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="220" viewBox="0 0 160 220">
+  <rect width="160" height="220" fill="#2a2a3e" rx="6"/>
+  <text x="80" y="100" font-size="48" text-anchor="middle" fill="#444">📖</text>
+  <text x="80" y="140" font-size="12" text-anchor="middle" fill="#555" font-family="sans-serif">封面圖片</text>
+  <text x="80" y="158" font-size="12" text-anchor="middle" fill="#555" font-family="sans-serif">載入中…</text>
+</svg>

@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>我的電子書櫃</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    font-family: 'Microsoft JhengHei', 'PingFang TC', sans-serif;
+    background: #1e3a5f;
+    overflow: hidden;
+  }
+
+  /* ═══════════════════════════════════════
+     書櫃 View
+  ═══════════════════════════════════════ */
+  #view-shelf { display: flex; flex-direction: column; height: 100dvh; }
+  #view-shelf.hidden { display: none; }
+
+  .shelf-topbar {
+    flex-shrink: 0;
+    height: 12px;
+    background: #1e3a5f;
+    border-bottom: 4px solid #b8922a;
+    position: relative;
+  }
+
+  .shelf-topbar .btn-fs {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 36px;
+    height: 36px;
+    margin-top: 2px;
+  }
+
+  .shelf-wrap {
+    flex: 1;
+    padding: clamp(10px,1.5vw,20px);
+    padding-top: clamp(18px,2vw,28px);
+    overflow: hidden;
+  }
+
+  .shelf {
+    height: 100%;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+    gap: clamp(10px,1.5vw,20px);
+  }
+
+  .book-card {
+    display: block;
+    text-decoration: none;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    outline: none;
+    border-radius: 4px 10px 10px 4px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: -3px 3px 0 #777, 4px 8px 20px rgba(0,0,0,0.45);
+    transition: box-shadow 0.2s, transform 0.2s;
+    cursor: pointer;
+  }
+
+  .book-card img {
+    width: 100%; height: 100%;
+    object-fit: cover; display: block;
+    pointer-events: none;
+  }
+
+  .book-spine {
+    position: absolute;
+    top: 0; left: 0;
+    width: 7px; height: 100%;
+    background: rgba(0,0,0,0.22);
+  }
+
+  .book-title {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    background: linear-gradient(transparent, rgba(10,24,48,0.82));
+    color: #f5e6c0;
+    font-size: clamp(0.75rem,1.6vw,1rem);
+    font-weight: bold;
+    letter-spacing: 1px;
+    padding: clamp(18px,3vw,32px) 10px 8px;
+    text-align: center;
+    line-height: 1.4;
+  }
+
+  .page-count {
+    position: absolute;
+    top: 8px; right: 8px;
+    background: rgba(0,0,0,0.50);
+    color: #f5e6c0;
+    font-size: 0.62rem;
+    padding: 2px 7px;
+    border-radius: 10px;
+    letter-spacing: 1px;
+  }
+
+  @media (hover: hover) {
+    .book-card:hover {
+      transform: translateY(-5px) scale(1.02);
+      box-shadow: -3px 3px 0 #777, 6px 16px 30px rgba(0,0,0,0.55);
+    }
+  }
+  .book-card:active {
+    transform: scale(0.96);
+    box-shadow: -2px 2px 0 #666, 2px 4px 10px rgba(0,0,0,0.3);
+  }
+
+  @media (max-width: 540px) {
+    .shelf {
+      grid-template-columns: repeat(2, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+    }
+  }
+
+  /* ═══════════════════════════════════════
+     閱讀器 View
+  ═══════════════════════════════════════ */
+  #view-reader { display: flex; flex-direction: column; height: 100dvh; }
+  #view-reader.hidden { display: none; }
+
+  .reader-topbar {
+    flex-shrink: 0;
+    background: #162d4a;
+    border-bottom: 3px solid #b8922a;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    height: 50px;
+  }
+
+  .reader-topbar .back-btn {
+    color: #a8bcd0;
+    text-decoration: none;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    letter-spacing: 1px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    padding: 0;
+  }
+  .reader-topbar .back-btn:hover { color: #f5e6c0; }
+
+  .book-title-bar {
+    color: #f5e6c0;
+    font-size: 0.95rem;
+    font-weight: bold;
+    letter-spacing: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 40vw;
+  }
+
+  .page-indicator {
+    color: #b8922a;
+    font-size: 0.85rem;
+    font-weight: bold;
+    min-width: 70px;
+    text-align: right;
+    letter-spacing: 1px;
+  }
+
+  /* 文字縮放 */
+  .font-ctrl { display: flex; align-items: center; gap: 4px; }
+  .font-btn {
+    background: #1e3a5f;
+    border: 1px solid #b8922a;
+    color: #f5e6c0;
+    cursor: pointer;
+    border-radius: 2px;
+    line-height: 1;
+    font-family: inherit;
+    font-weight: bold;
+    transition: background 0.15s;
+    padding: 3px 8px;
+  }
+  .font-btn:hover { background: #2d5a8e; }
+  .font-btn.btn-minus { font-size: 1rem; }
+  .font-btn.btn-plus  { font-size: 1.1rem; }
+  .font-size-label { color: #a8bcd0; font-size: 0.72rem; min-width: 32px; text-align: center; }
+
+  /* 閱讀器主體 */
+  .stage {
+    flex: 1;
+    display: flex;
+    align-items: stretch;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .spread-viewport {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .spread {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    transition: none;
+  }
+
+  .spread.enter-from-right { animation: slideInRight 0.38s cubic-bezier(0.25,0.46,0.45,0.94) forwards; }
+  .spread.enter-from-left  { animation: slideInLeft  0.38s cubic-bezier(0.25,0.46,0.45,0.94) forwards; }
+  .spread.exit-to-left     { animation: slideOutLeft 0.38s cubic-bezier(0.25,0.46,0.45,0.94) forwards; }
+  .spread.exit-to-right    { animation: slideOutRight 0.38s cubic-bezier(0.25,0.46,0.45,0.94) forwards; }
+
+  @keyframes slideInRight  { from { transform: translateX(100%); } to { transform: translateX(0); } }
+  @keyframes slideInLeft   { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+  @keyframes slideOutLeft  { from { transform: translateX(0); } to { transform: translateX(-100%); } }
+  @keyframes slideOutRight { from { transform: translateX(0); } to { transform: translateX(100%); } }
+
+  /* 封面 */
+  .spread-cover {
+    flex: 1; background: #f0ebe2;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 24px; padding: 40px;
+  }
+  .spread-cover img {
+    max-height: 60vh; max-width: 80%;
+    object-fit: contain;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.35);
+    border-radius: 4px;
+  }
+  .spread-cover h2 { font-size: 1.6rem; color: #1e3a5f; text-align: center; letter-spacing: 4px; font-weight: bold; }
+  .spread-cover .start-btn {
+    margin-top: 8px; padding: 12px 40px;
+    background: #1e3a5f; color: #f5e6c0;
+    border: 2px solid #b8922a; border-radius: 2px;
+    font-size: 1rem; font-weight: bold;
+    cursor: pointer; font-family: inherit;
+    letter-spacing: 3px; transition: background 0.2s;
+  }
+  .spread-cover .start-btn:hover { background: #2d5a8e; }
+
+  /* 書頁內容 */
+  .spread-content { flex: 1; display: flex; }
+
+  .spread-image {
+    flex: 1; background: #000;
+    overflow: hidden; position: relative;
+  }
+  .spread-image img {
+    width: 100%; height: 100%;
+    object-fit: contain; display: block;
+    transform-origin: center center;
+    transition: transform 0.2s ease;
+    cursor: zoom-in;
+  }
+  .spread-image img.zoomed { cursor: zoom-out; }
+
+  /* 圖片縮放浮動控制列 */
+  .img-zoom-bar {
+    position: absolute;
+    bottom: 14px; left: 50%;
+    transform: translateX(-50%);
+    display: flex; align-items: center; gap: 6px;
+    background: rgba(22,45,74,0.82);
+    border: 1px solid #b8922a;
+    border-radius: 20px; padding: 5px 14px;
+    z-index: 10; opacity: 0;
+    transition: opacity 0.25s;
+    pointer-events: none; white-space: nowrap;
+  }
+  .spread-image:hover .img-zoom-bar,
+  .img-zoom-bar:hover { opacity: 1; pointer-events: auto; }
+  .img-zoom-btn {
+    background: none; border: none;
+    color: #f5e6c0; font-size: 1.1rem;
+    font-weight: bold; cursor: pointer;
+    padding: 0 4px; line-height: 1; font-family: inherit;
+  }
+  .img-zoom-btn:hover { color: #b8922a; }
+  .img-zoom-label { color: #a8bcd0; font-size: 0.72rem; min-width: 34px; text-align: center; }
+  .img-zoom-reset {
+    color: #a8bcd0; font-size: 0.68rem;
+    cursor: pointer; border: none; background: none;
+    font-family: inherit; padding: 0 2px;
+  }
+  .img-zoom-reset:hover { color: #f5e6c0; }
+
+  .spine {
+    width: 6px; flex-shrink: 0;
+    background: #b8922a;
+    box-shadow: inset -2px 0 6px rgba(0,0,0,0.3), inset 2px 0 6px rgba(0,0,0,0.3);
+  }
+
+  .spread-text {
+    width: clamp(280px,38%,480px); flex-shrink: 0;
+    background: #faf8f4;
+    display: flex; flex-direction: column;
+    justify-content: center; padding: 40px 36px;
+    position: relative; border-left: 1px solid #e0d8cc;
+  }
+  .spread-text .text-content {
+    font-size: var(--story-font-size, 1.9rem);
+    line-height: 2.2; color: #1a2e45;
+    font-weight: 500; letter-spacing: 0.5px;
+  }
+  .spread-text .page-num {
+    position: absolute;
+    bottom: 18px; right: 22px;
+    font-size: 0.78rem; color: #b8922a;
+    letter-spacing: 2px; font-weight: bold;
+  }
+  .spread-text::before {
+    content: ''; position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 4px; background: #b8922a;
+  }
+
+  /* 結尾頁 */
+  .spread-end {
+    flex: 1; background: #f0ebe2;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 18px; text-align: center; padding: 40px;
+  }
+  .spread-end .cross { font-size: 3rem; color: #b8922a; line-height: 1; }
+  .spread-end h2 { font-size: 1.5rem; color: #1e3a5f; letter-spacing: 4px; }
+  .spread-end p  { color: #7a9ab8; font-size: 0.9rem; letter-spacing: 1px; }
+  .spread-end .btn-row { display: flex; gap: 14px; margin-top: 12px; flex-wrap: wrap; justify-content: center; }
+
+  .end-btn { padding: 10px 28px; font-size: 0.9rem; font-family: inherit; cursor: pointer; letter-spacing: 2px; border-radius: 2px; transition: background 0.2s; }
+  .end-btn-primary   { background: #1e3a5f; color: #f5e6c0; border: 2px solid #b8922a; }
+  .end-btn-primary:hover { background: #2d5a8e; }
+  .end-btn-secondary { background: transparent; color: #1e3a5f; border: 2px solid #1e3a5f; }
+  .end-btn-secondary:hover { background: #e8e0d4; }
+
+  /* 翻頁按鈕 */
+  .nav-btn {
+    flex-shrink: 0; width: 52px;
+    background: #162d4a; border: none;
+    color: #a8bcd0; font-size: 1.6rem;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+    display: flex; align-items: center; justify-content: center;
+    border-top: 3px solid #b8922a;
+  }
+  .nav-btn:hover:not(:disabled) { background: #1e3a5f; color: #f5e6c0; }
+  .nav-btn:disabled { opacity: 0.2; cursor: default; }
+
+  .progress-wrap { flex-shrink: 0; height: 4px; background: #162d4a; }
+  .progress-bar  { height: 100%; background: #b8922a; transition: width 0.4s ease; }
+
+  .reader-status {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    color: #a8bcd0; font-size: 1.1rem; letter-spacing: 2px;
+  }
+
+  /* ═══════════════════════════════════════
+     共用：全螢幕按鈕
+  ═══════════════════════════════════════ */
+  .btn-fs {
+    background: none;
+    border: 1px solid #b8922a;
+    color: #a8bcd0;
+    cursor: pointer;
+    border-radius: 4px;
+    padding: 4px 7px;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s, color 0.15s;
+    flex-shrink: 0;
+  }
+  .btn-fs:hover { background: #2d5a8e; color: #f5e6c0; }
+  .btn-fs:active { background: #b8922a; }
+  .btn-fs svg { display: block; }
+
+  /* 響應式 */
+  @media (max-width: 600px) {
+    .spread-content { flex-direction: column; }
+    .spread-image { flex: none; height: 45vh; }
+    .spine { width: 100%; height: 4px; }
+    .spread-text { width: 100%; flex: 1; padding: 20px; }
+    .spread-text .text-content { font-size: 1.1rem; line-height: 1.9; }
+    .nav-btn { width: 44px; border-top: none; border-left: 3px solid #b8922a; }
+    .book-title-bar { max-width: 30vw; }
+  }
+</style>
+</head>
+<body>
+
+<script src="books_data.js"></script>
+
+<!-- ══════════════════════════════════════
+     書櫃 View
+══════════════════════════════════════ -->
+<div id="view-shelf">
+  <div class="shelf-topbar">
+    <button class="btn-fs" id="btnFsShelf" title="全螢幕">
+      <svg id="shelfFsExpand" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/>
+        <line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>
+      </svg>
+      <svg id="shelfFsCollapse" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="display:none">
+        <polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/>
+        <line x1="10" y1="14" x2="3" y2="21"/><line x1="21" y1="3" x2="14" y2="10"/>
+      </svg>
+    </button>
+  </div>
+  <div class="shelf-wrap">
+    <div class="shelf" id="shelf"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     閱讀器 View
+══════════════════════════════════════ -->
+<div id="view-reader" class="hidden">
+  <div class="reader-topbar">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <button class="back-btn" id="btnBack">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+        書櫃
+      </button>
+      <button class="back-btn" id="btnCover" title="回到封面">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+          <rect x="3" y="3" width="18" height="18" rx="2"/>
+          <line x1="3" y1="9" x2="21" y2="9"/>
+          <line x1="9" y1="21" x2="9" y2="9"/>
+        </svg>
+        封面
+      </button>
+    </div>
+    <span class="book-title-bar" id="topTitle"></span>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div class="font-ctrl">
+        <button class="font-btn btn-minus" id="btnFontMinus" title="縮小文字">A－</button>
+        <span class="font-size-label" id="fontSizeLabel"></span>
+        <button class="font-btn btn-plus" id="btnFontPlus" title="放大文字">A＋</button>
+      </div>
+      <span class="page-indicator" id="topPageInd"></span>
+      <button class="btn-fs" id="btnFsReader" title="全螢幕">
+        <svg id="readerFsExpand" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+          <polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/>
+          <line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>
+        </svg>
+        <svg id="readerFsCollapse" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="display:none">
+          <polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/>
+          <line x1="10" y1="14" x2="3" y2="21"/><line x1="14" y1="10" x2="21" y2="3"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="stage">
+    <button class="nav-btn" id="btnPrev" title="上一頁">&#8249;</button>
+    <div class="spread-viewport" id="viewport">
+      <div class="reader-status" id="statusMsg">載入中…</div>
+    </div>
+    <button class="nav-btn" id="btnNext" title="下一頁">&#8250;</button>
+  </div>
+
+  <div class="progress-wrap">
+    <div class="progress-bar" id="progressBar" style="width:0%"></div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════
+//  工具
+// ══════════════════════════════════════
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ══════════════════════════════════════
+//  全螢幕（共用，與哪個 View 無關）
+// ══════════════════════════════════════
+function isFs() {
+  return !!(document.fullscreenElement || document.webkitFullscreenElement);
+}
+
+function toggleFs() {
+  if (!isFs()) {
+    const el = document.documentElement;
+    (el.requestFullscreen || el.webkitRequestFullscreen).call(el).catch(()=>{});
+  } else {
+    (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+  }
+}
+
+function syncFsIcons() {
+  const fs = isFs();
+  document.getElementById('shelfFsExpand').style.display   = fs ? 'none' : '';
+  document.getElementById('shelfFsCollapse').style.display = fs ? '' : 'none';
+  document.getElementById('readerFsExpand').style.display   = fs ? 'none' : '';
+  document.getElementById('readerFsCollapse').style.display = fs ? '' : 'none';
+  document.getElementById('btnFsShelf').title  = fs ? '退出全螢幕' : '全螢幕';
+  document.getElementById('btnFsReader').title = fs ? '退出全螢幕' : '全螢幕';
+}
+
+document.getElementById('btnFsShelf').addEventListener('click', toggleFs);
+document.getElementById('btnFsReader').addEventListener('click', toggleFs);
+document.addEventListener('fullscreenchange', syncFsIcons);
+document.addEventListener('webkitfullscreenchange', syncFsIcons);
+syncFsIcons();
+
+// ══════════════════════════════════════
+//  View 切換
+// ══════════════════════════════════════
+const viewShelf  = document.getElementById('view-shelf');
+const viewReader = document.getElementById('view-reader');
+
+function showShelf() {
+  viewReader.classList.add('hidden');
+  viewShelf.classList.remove('hidden');
+  document.title = '我的電子書櫃';
+}
+
+function showReader(bookId) {
+  viewShelf.classList.add('hidden');
+  viewReader.classList.remove('hidden');
+  loadBook(bookId);
+}
+
+// 回到書櫃按鈕
+document.getElementById('btnBack').addEventListener('click', showShelf);
+document.getElementById('btnCover').addEventListener('click', () => { if (book) navigate(0, 'back'); });
+
+// ══════════════════════════════════════
+//  書櫃渲染
+// ══════════════════════════════════════
+const shelf = document.getElementById('shelf');
+window.BOOKS_DATA.books.forEach(book => {
+  const card = document.createElement('div');
+  card.className = 'book-card';
+  card.setAttribute('role', 'button');
+  card.setAttribute('tabindex', '0');
+  card.innerHTML = `
+    <img src="${esc(book.coverImg)}" alt="${esc(book.title)}" loading="lazy"
+         onerror="this.src='assets/no-cover.svg'">
+    <div class="book-spine"></div>
+    <div class="page-count">${book.pages.length} 頁</div>
+    <div class="book-title">${esc(book.title)}</div>`;
+  card.addEventListener('click', () => showReader(book.id));
+  card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') showReader(book.id); });
+  shelf.appendChild(card);
+});
+
+// ══════════════════════════════════════
+//  閱讀器
+// ══════════════════════════════════════
+let book = null;
+let current = 0;
+let total = 0;
+let busy = false;
+
+function loadBook(bookId) {
+  const data = window.BOOKS_DATA;
+  book = data.books.find(b => b.id === bookId);
+  if (!book) { showReaderStatus('找不到書本: ' + bookId); return; }
+  total = book.pages.length + 1;
+  current = 0;
+  document.title = book.title;
+  document.getElementById('topTitle').textContent = book.title;
+  document.getElementById('viewport').innerHTML = '';
+  busy = false;
+  render(0);
+}
+
+function render(idx, dir) {
+  current = idx;
+  const vp = document.getElementById('viewport');
+  const el = document.createElement('div');
+  el.className = 'spread';
+
+  if (idx === 0) {
+    el.innerHTML = `
+      <div class="spread-cover">
+        <img src="${esc(book.coverImg)}" alt="封面" onerror="this.src='assets/no-cover.svg'">
+        <h2>${esc(book.title)}</h2>
+        <button class="start-btn" id="startBtn">開 始 閱 讀</button>
+      </div>`;
+  } else if (idx > book.pages.length) {
+    el.innerHTML = `
+      <div class="spread-end">
+        <div class="cross">✝</div>
+        <h2>閱讀完畢</h2>
+        <p>${esc(book.title)}</p>
+        <div class="btn-row">
+          <button class="end-btn end-btn-primary" id="endRestart">重新閱讀</button>
+          <button class="end-btn end-btn-secondary" id="endShelf">回到書櫃</button>
+        </div>
+      </div>`;
+  } else {
+    const page = book.pages[idx - 1];
+    el.innerHTML = `
+      <div class="spread-content">
+        <div class="spread-image">
+          <img src="${esc(page.img)}" loading="eager" onerror="this.src='assets/no-cover.svg'">
+          <div class="img-zoom-bar">
+            <button class="img-zoom-btn" id="imgZoomOut" title="縮小圖片">－</button>
+            <span class="img-zoom-label" id="imgZoomLabel">100%</span>
+            <button class="img-zoom-btn" id="imgZoomIn" title="放大圖片">＋</button>
+            <button class="img-zoom-reset" id="imgZoomReset" title="還原">↺</button>
+          </div>
+        </div>
+        <div class="spine"></div>
+        <div class="spread-text">
+          <div class="text-content">${esc(page.text)}</div>
+          <span class="page-num">${idx} / ${book.pages.length}</span>
+        </div>
+      </div>`;
+    const img = el.querySelector('.spread-image img');
+    const label = el.querySelector('#imgZoomLabel');
+    el.querySelector('#imgZoomIn').addEventListener('click',    e => { e.stopPropagation(); imgZoomStep(img, label, 1); });
+    el.querySelector('#imgZoomOut').addEventListener('click',   e => { e.stopPropagation(); imgZoomStep(img, label, -1); });
+    el.querySelector('#imgZoomReset').addEventListener('click', e => { e.stopPropagation(); imgZoomSet(img, label, 1); });
+    img.addEventListener('click', () => {
+      const cur = parseFloat(img.dataset.zoomScale || '1');
+      imgZoomSet(img, label, cur >= 2 ? 1 : cur + 0.5);
+    });
+  }
+
+  // 換頁動畫
+  if (dir && vp.children.length > 0) {
+    const old = vp.querySelector('.spread');
+    if (old) {
+      old.classList.add(dir === 'forward' ? 'exit-to-left' : 'exit-to-right');
+      old.addEventListener('animationend', () => old.remove(), { once: true });
+    }
+    el.classList.add(dir === 'forward' ? 'enter-from-right' : 'enter-from-left');
+  } else {
+    vp.innerHTML = '';
+  }
+
+  vp.appendChild(el);
+
+  // 按鈕事件
+  const startBtn = el.querySelector('#startBtn');
+  if (startBtn) startBtn.addEventListener('click', () => navigate(1, 'forward'));
+  const endRestart = el.querySelector('#endRestart');
+  if (endRestart) endRestart.addEventListener('click', () => navigate(0, 'back'));
+  const endShelf = el.querySelector('#endShelf');
+  if (endShelf) endShelf.addEventListener('click', showShelf);
+
+  updateNav();
+  updateProgress();
+  updateTopBar();
+  busy = false;
+}
+
+function navigate(idx, dir) {
+  if (busy) return;
+  if (idx < 0 || idx > total) return;
+  busy = true;
+  render(idx, dir);
+}
+
+function updateNav() {
+  document.getElementById('btnPrev').disabled = (current <= 0);
+  document.getElementById('btnNext').disabled = (current >= total);
+}
+
+function updateProgress() {
+  const pct = total <= 0 ? 0 : (current / total) * 100;
+  document.getElementById('progressBar').style.width = pct + '%';
+}
+
+function updateTopBar() {
+  const ind = document.getElementById('topPageInd');
+  if (!book) return;
+  if (current === 0) ind.textContent = '封面';
+  else if (current > book.pages.length) ind.textContent = '完';
+  else ind.textContent = current + ' / ' + book.pages.length;
+}
+
+function showReaderStatus(msg) {
+  const vp = document.getElementById('viewport');
+  vp.innerHTML = `<div class="reader-status">${esc(msg)}</div>`;
+  busy = false;
+}
+
+// 翻頁按鈕
+document.getElementById('btnPrev').addEventListener('click', () => {
+  if (current > 0) navigate(current - 1, 'back');
+});
+document.getElementById('btnNext').addEventListener('click', () => {
+  if (current < total) navigate(current + 1, 'forward');
+});
+
+// 鍵盤
+document.addEventListener('keydown', e => {
+  if (viewReader.classList.contains('hidden')) return;
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+    if (current < total) navigate(current + 1, 'forward');
+  } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+    if (current > 0) navigate(current - 1, 'back');
+  }
+});
+
+// 觸控滑動
+let tx = 0;
+document.addEventListener('touchstart', e => { tx = e.touches[0].clientX; }, { passive: true });
+document.addEventListener('touchend', e => {
+  if (viewReader.classList.contains('hidden')) return;
+  const dx = e.changedTouches[0].clientX - tx;
+  if (Math.abs(dx) > 50) {
+    if (dx < 0 && current < total) navigate(current + 1, 'forward');
+    else if (dx > 0 && current > 0) navigate(current - 1, 'back');
+  }
+}, { passive: true });
+
+// ── 文字縮放 ──
+const FONT_SIZES = [1.2, 1.5, 1.8, 1.9, 2.2, 2.6, 3.0];
+let fontIdx = parseInt(localStorage.getItem('readerFontIdx') ?? '3');
+
+function applyFontSize() {
+  const size = FONT_SIZES[fontIdx];
+  document.documentElement.style.setProperty('--story-font-size', size + 'rem');
+  document.getElementById('fontSizeLabel').textContent = size.toFixed(1);
+  document.getElementById('btnFontMinus').disabled = (fontIdx <= 0);
+  document.getElementById('btnFontPlus').disabled  = (fontIdx >= FONT_SIZES.length - 1);
+  localStorage.setItem('readerFontIdx', fontIdx);
+}
+document.getElementById('btnFontPlus').addEventListener('click', () => {
+  if (fontIdx < FONT_SIZES.length - 1) { fontIdx++; applyFontSize(); }
+});
+document.getElementById('btnFontMinus').addEventListener('click', () => {
+  if (fontIdx > 0) { fontIdx--; applyFontSize(); }
+});
+applyFontSize();
+
+// ── 圖片縮放 ──
+const IMG_ZOOM_STEPS = [0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3];
+
+function imgZoomSet(img, label, scale) {
+  img.dataset.zoomScale = scale;
+  img.style.transform = scale === 1 ? '' : `scale(${scale})`;
+  img.classList.toggle('zoomed', scale > 1);
+  if (label) label.textContent = Math.round(scale * 100) + '%';
+}
+
+function imgZoomStep(img, label, dir) {
+  const cur = parseFloat(img.dataset.zoomScale || '1');
+  let idx = IMG_ZOOM_STEPS.findIndex(s => s >= cur - 0.01);
+  if (idx < 0) idx = 2;
+  idx = Math.max(0, Math.min(IMG_ZOOM_STEPS.length - 1, idx + dir));
+  imgZoomSet(img, label, IMG_ZOOM_STEPS[idx]);
+}
+
+// ══════════════════════════════════════
+//  初始化：檢查 URL 參數
+// ══════════════════════════════════════
+(function init() {
+  const bookId = new URLSearchParams(location.search).get('book');
+  if (bookId) showReader(bookId);
+})();
+</script>
+</body>
+</html>
